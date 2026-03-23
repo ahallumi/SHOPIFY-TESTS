@@ -654,6 +654,10 @@
           {% if show_imgs %}
             <div class="{{ mm_ns }}-img">
               {% if img_obj %}
+                {% assign image_loading = 'lazy' %}
+                {% if forloop.index <= 4 %}
+                  {% assign image_loading = 'eager' %}
+                {% endif %}
                 <button
                   class="{{ mm_ns }}-imgbtn"
                   type="button"
@@ -663,7 +667,7 @@
                   {{ img_obj
                     | image_url: width: 384, height: 384, crop: 'center'
                     | image_tag:
-                      loading: forloop.index <= 4 ? 'eager' : 'lazy',
+                      loading: image_loading,
                       width: 84,
                       height: 84,
                       alt: v.title,
@@ -746,7 +750,7 @@
     <button class="{{ mm_ns }}-modal-close" type="button" aria-label="Close zoom view" data-zoom-close>✕</button>
     <div class="{{ mm_ns }}-zoomstage">
       <div class="{{ mm_ns }}-zoommedia">
-        <img src="" alt="" data-zoom-image>
+        <img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==" alt="" data-zoom-image hidden decoding="async">
       </div>
       <div class="{{ mm_ns }}-zoommeta">
         <h4 class="{{ mm_ns }}-zoomtitle" data-zoom-title></h4>
@@ -758,6 +762,7 @@
 
 <script>
 (function(){
+  var zoomPlaceholder = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==';
   var script = document.currentScript;
   if (!script) return;
   var wrap = script.previousElementSibling;
@@ -1009,6 +1014,7 @@
 
     zoomImage.src = src;
     zoomImage.alt = alt;
+    zoomImage.hidden = false;
     if (zoomTitle) zoomTitle.textContent = title;
 
     zoomOverlay.style.display = 'block';
@@ -1022,8 +1028,9 @@
     zoomModal.style.display = 'none';
     zoomOverlay.style.display = 'none';
     if (zoomImage){
-      zoomImage.src = '';
+      zoomImage.src = zoomPlaceholder;
       zoomImage.alt = '';
+      zoomImage.hidden = true;
     }
     unlockScroll();
     if (lastFocusedElement) lastFocusedElement.focus();
