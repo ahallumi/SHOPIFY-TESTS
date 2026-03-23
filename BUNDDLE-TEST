@@ -1,0 +1,1332 @@
+{%- comment -%}
+  Enhanced Mix & Match block
+  Improvements:
+  - Better product card UX
+  - Product image zoom/lightbox
+  - Better a11y, focus, status messaging
+  - Better loading states
+  - More polished quantity controls / CTA
+  - Keeps existing logic and rules
+{%- endcomment -%}
+
+{%- assign display_mode_val = display_mode | default: 'grid' -%}
+{%- assign mm_ns = 'mm' -%}
+{%- assign accent = accent_hex | default: '#ff2f87' -%}
+{%- assign ctabg = cta_bg | default: '#111111' -%}
+{%- assign ctatx = cta_text | default: '#ffffff' -%}
+{%- assign list_height = list_max_height | default: 700 -%}
+{%- assign show_imgs = show_images | default: true -%}
+{%- assign add_is_bold = add_bold | default: true -%}
+{%- assign title_text = mm_title | default: 'Pick & mix your flavors' -%}
+{%- assign subtitle_text = mm_subtitle | default: '' -%}
+
+{%- assign prompt_enable = prompt_enable | default: true -%}
+{%- assign prompt_threshold = prompt_threshold | default: 3 -%}
+{%- assign prompt_question = prompt_question | default: 'Add one more to unlock the bundle discount?' -%}
+{%- assign prompt_do_label = prompt_do_label | default: 'Do it' -%}
+{%- assign prompt_skip_label = prompt_skip_label | default: 'Skip' -%}
+
+<div class="{{ mm_ns }}-wrap" data-mm data-mode="{{ display_mode_val }}" data-accent="{{ accent | escape }}">
+  <style>
+    .{{ mm_ns }}-wrap{
+      --mm-accent: {{ accent }};
+      --mm-accent-rgb: 255, 47, 135;
+      --mm-cta-bg: {{ ctabg }};
+      --mm-cta-text: {{ ctatx }};
+      --mm-bg: #ffffff;
+      --mm-surface: #f6f7f9;
+      --mm-surface-2: #eef1f4;
+      --mm-border: #e4e7ec;
+      --mm-border-strong: #cfd6dd;
+      --mm-text: #111827;
+      --mm-muted: #667085;
+      --mm-success: #16a34a;
+      --mm-shadow: 0 10px 30px rgba(16,24,40,.08);
+      --mm-radius-sm: 10px;
+      --mm-radius-md: 14px;
+      --mm-radius-lg: 18px;
+    }
+
+    .{{ mm_ns }}-wrap * { box-sizing: border-box; }
+
+    .{{ mm_ns }}-header{ margin-bottom: 14px; }
+    .{{ mm_ns }}-title{
+      margin:0 0 4px;
+      font-size: clamp(22px, 2vw, 28px);
+      line-height:1.1;
+      letter-spacing:-0.02em;
+      color: var(--mm-text);
+    }
+    .{{ mm_ns }}-subtitle{
+      margin:0;
+      color: var(--mm-muted);
+      font-size:14px;
+      line-height:1.45;
+      max-width: 70ch;
+    }
+
+    .{{ mm_ns }}-sr-only{
+      position:absolute !important;
+      width:1px !important;
+      height:1px !important;
+      padding:0 !important;
+      margin:-1px !important;
+      overflow:hidden !important;
+      clip:rect(0,0,0,0) !important;
+      white-space:nowrap !important;
+      border:0 !important;
+    }
+
+    .{{ mm_ns }}-tiers{
+      display:grid;
+      grid-template-columns: repeat(1, minmax(0,1fr));
+      gap:10px;
+      margin:16px 0 14px;
+    }
+    @media (min-width: 750px){
+      .{{ mm_ns }}-tiers{ grid-template-columns: repeat(3, minmax(0,1fr)); }
+    }
+
+    .{{ mm_ns }}-tier{
+      position:relative;
+      min-width:0;
+      background: {{ tier_bg | default: '#f7f8fa' }};
+      color: {{ tier_text | default: '#0f1115' }};
+      border-radius: 16px;
+      padding: 14px;
+      border:1px solid var(--mm-border);
+      transition: border-color .2s ease, transform .18s ease, box-shadow .18s ease, background .18s ease;
+    }
+    .{{ mm_ns }}-tier.is-active{
+      background: {{ tier_active_bg | default: '#f2fff6' }};
+      border-color: var(--mm-accent);
+      box-shadow: 0 0 0 3px rgba(255, 47, 135, .10);
+      transform: translateY(-1px);
+    }
+    .{{ mm_ns }}-tier .chk{
+      position:absolute;
+      right:10px;
+      top:10px;
+      width:20px;
+      height:20px;
+      border-radius:999px;
+      background: var(--mm-success);
+      display:none;
+      align-items:center;
+      justify-content:center;
+      box-shadow: 0 2px 8px rgba(22,163,74,.25);
+    }
+    .{{ mm_ns }}-tier.is-active .chk{ display:flex; }
+    .{{ mm_ns }}-tier .chk svg{ width:12px; height:12px; }
+    .{{ mm_ns }}-tier-top{ display:flex; align-items:center; gap:10px; }
+    .{{ mm_ns }}-tier-icon,
+    .mm-tier__icon{
+      width:30px;
+      height:30px;
+      border-radius:8px;
+      object-fit:cover;
+      flex:0 0 auto;
+    }
+    .{{ mm_ns }}-tier-label{
+      font-weight:700;
+      font-size:14px;
+      line-height:1.2;
+      color: var(--mm-text);
+    }
+    .{{ mm_ns }}-tier-line{
+      font-size:12px;
+      color: var(--mm-muted);
+      margin-top:3px;
+    }
+
+    .{{ mm_ns }}-list{
+      display:grid;
+      gap:12px;
+      margin-top:12px;
+      {% if list_height > 0 %}max-height: {{ list_height }}px; overflow:auto;{% endif %}
+      padding-right: 2px;
+    }
+    .{{ mm_ns }}-list[data-mode="list"]{ grid-template-columns:1fr; }
+    .{{ mm_ns }}-list[data-mode="grid"]{ grid-template-columns: repeat(2, minmax(0,1fr)); }
+    @media(min-width: 990px){
+      .{{ mm_ns }}-list[data-mode="grid"]{ grid-template-columns: repeat(3, minmax(0,1fr)); }
+      .{{ mm_ns }}-list[data-mode="compact"]{ grid-template-columns: repeat(4, minmax(0,1fr)); }
+    }
+
+    .{{ mm_ns }}-card{
+      position:relative;
+      border:1px solid var(--mm-border);
+      border-radius: 18px;
+      padding:12px;
+      background:#fff;
+      transition: box-shadow .18s ease, transform .18s ease, border-color .18s ease;
+      box-shadow: 0 1px 2px rgba(16,24,40,.02);
+    }
+    .{{ mm_ns }}-card:hover{
+      transform: translateY(-2px);
+      box-shadow: var(--mm-shadow);
+    }
+    .{{ mm_ns }}-card.selected{
+      border-color: var(--mm-accent);
+      box-shadow: 0 0 0 3px rgba(255, 47, 135, .12), var(--mm-shadow);
+    }
+    .{{ mm_ns }}-card:focus-within{
+      outline: none;
+      border-color: var(--mm-accent);
+      box-shadow: 0 0 0 3px rgba(255, 47, 135, .14), var(--mm-shadow);
+    }
+
+    .{{ mm_ns }}-inner{
+      display:grid;
+      grid-template-columns: auto 1fr auto;
+      gap:12px;
+      align-items:start;
+    }
+
+    .{{ mm_ns }}-img{
+      width:84px;
+      height:84px;
+      border-radius:14px;
+      overflow:hidden;
+      flex:0 0 auto;
+      background:#f8fafc;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      position:relative;
+      border:1px solid var(--mm-border);
+    }
+    .{{ mm_ns }}-imgbtn{
+      all: unset;
+      cursor: zoom-in;
+      display:block;
+      width:100%;
+      height:100%;
+      position:relative;
+    }
+    .{{ mm_ns }}-imgbtn img{
+      width:100%;
+      height:100%;
+      object-fit:cover;
+      display:block;
+      transition: transform .22s ease;
+    }
+    .{{ mm_ns }}-card:hover .{{ mm_ns }}-imgbtn img{ transform: scale(1.04); }
+    .{{ mm_ns }}-zoomhint{
+      position:absolute;
+      right:6px;
+      bottom:6px;
+      background: rgba(17,24,39,.76);
+      color:#fff;
+      border-radius:999px;
+      font-size:10px;
+      padding:4px 7px;
+      line-height:1;
+      pointer-events:none;
+      backdrop-filter: blur(4px);
+    }
+
+    .{{ mm_ns }}-meta{ min-width:0; }
+    .{{ mm_ns }}-name{
+      margin:0 0 6px;
+      font-size: {{ name_size | default: 16 }}px;
+      {% if name_bold %}font-weight:700;{% else %}font-weight:600;{% endif %}
+      line-height:1.3;
+      color: var(--mm-text);
+      display:-webkit-box;
+      -webkit-line-clamp:2;
+      -webkit-box-orient:vertical;
+      overflow:hidden;
+    }
+
+    .{{ mm_ns }}-prices{
+      display:flex;
+      flex-direction:column;
+      gap:2px;
+      font-size:{{ price_size | default: 16 }}px;
+      {% if price_bold %}font-weight:700;{% else %}font-weight:600;{% endif %}
+      line-height:1.2;
+      color: var(--mm-text);
+    }
+    .{{ mm_ns }}-prices .compare{
+      opacity:.56;
+      text-decoration:line-through;
+      font-size:13px;
+      font-weight:500;
+    }
+    .{{ mm_ns }}-prices .price{
+      display:block;
+      letter-spacing: -0.01em;
+    }
+
+    .{{ mm_ns }}-actions{
+      margin-left:auto;
+      display:flex;
+      flex-direction:column;
+      align-items:flex-end;
+      gap:8px;
+      min-width: 88px;
+    }
+
+    .{{ mm_ns }}-add,
+    .{{ mm_ns }}-qty button,
+    .{{ mm_ns }}-cta,
+    .{{ mm_ns }}-seeall,
+    .{{ mm_ns }}-btn,
+    .{{ mm_ns }}-modal-close{
+      transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease, background .15s ease, color .15s ease, opacity .15s ease;
+    }
+
+    .{{ mm_ns }}-add{
+      min-width:84px;
+      min-height:42px;
+      padding:10px 14px;
+      border-radius:12px;
+      border:1px solid var(--mm-accent);
+      background:#fff;
+      color: var(--mm-accent);
+      cursor:pointer;
+      {% if add_is_bold %}font-weight:700;{% else %}font-weight:600;{% endif %}
+      text-align:center;
+    }
+    .{{ mm_ns }}-add:hover{
+      background: rgba(255,47,135,.05);
+      transform: translateY(-1px);
+    }
+
+    .{{ mm_ns }}-qty{
+      display:none;
+      align-items:center;
+      gap:6px;
+      background: var(--mm-surface);
+      border:1px solid var(--mm-border);
+      border-radius: 14px;
+      padding: 5px;
+    }
+    .{{ mm_ns }}-qty button{
+      width:34px;
+      height:34px;
+      border-radius:10px;
+      border:1px solid var(--mm-border-strong);
+      background:#fff;
+      cursor:pointer;
+      font-size:18px;
+      line-height:1;
+    }
+    .{{ mm_ns }}-qty button:hover{
+      border-color: var(--mm-accent);
+      color: var(--mm-accent);
+    }
+    .{{ mm_ns }}-qty .val{
+      min-width:26px;
+      text-align:center;
+      font-weight:700;
+      color: var(--mm-text);
+    }
+
+    .{{ mm_ns }}-badge{
+      position:absolute;
+      top:10px;
+      left:10px;
+      background:#111827;
+      color:#fff;
+      font-size:11px;
+      line-height:1;
+      padding:6px 8px;
+      border-radius:999px;
+      box-shadow:0 1px 2px rgba(0,0,0,.15);
+      z-index:2;
+    }
+    .{{ mm_ns }}-card.is-oos{
+      opacity:.62;
+      filter: grayscale(.2);
+    }
+    .{{ mm_ns }}-card.is-oos .{{ mm_ns }}-add{
+      cursor:not-allowed;
+      opacity:.72;
+    }
+
+    .{{ mm_ns }}-footer{
+      position: sticky;
+      bottom: 0;
+      z-index: 4;
+      margin-top:14px;
+      display:grid;
+      gap:10px;
+      padding-top:10px;
+      background: linear-gradient(to top, rgba(255,255,255,1) 70%, rgba(255,255,255,0));
+    }
+
+    .{{ mm_ns }}-save{
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:8px;
+      padding:12px 14px;
+      border:1px dashed var(--mm-border-strong);
+      border-radius:14px;
+      background:#fff;
+      font-size:14px;
+      width:100%;
+      box-shadow: 0 2px 10px rgba(16,24,40,.03);
+    }
+    .{{ mm_ns }}-save .label{ color: var(--mm-muted); }
+    .{{ mm_ns }}-save .val{ font-weight:800; color: var(--mm-text); }
+
+    .{{ mm_ns }}-cta{
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:10px;
+      width:100%;
+      min-height:52px;
+      text-align:center;
+      padding:14px 18px;
+      border:none;
+      border-radius:16px;
+      background: var(--mm-cta-bg);
+      color: var(--mm-cta-text);
+      font-weight:800;
+      cursor:pointer;
+      box-shadow: 0 10px 24px rgba(17,17,17,.12);
+    }
+    .{{ mm_ns }}-cta:hover{
+      transform: translateY(-1px);
+      opacity: .96;
+    }
+    .{{ mm_ns }}-cta[disabled]{
+      opacity:.7;
+      cursor:not-allowed;
+      transform:none;
+    }
+
+    .{{ mm_ns }}-seeall{
+      display:none;
+      padding:10px 14px;
+      border:1px solid var(--mm-border);
+      border-radius:12px;
+      background:#fff;
+      cursor:pointer;
+      font-size:13px;
+      font-weight:600;
+      justify-self:center;
+      color: var(--mm-text);
+    }
+    .{{ mm_ns }}-seeall:hover{
+      border-color: var(--mm-border-strong);
+      background: #fafafa;
+    }
+
+    .{{ mm_ns }}-overlay{
+      position:fixed;
+      inset:0;
+      background:rgba(10,12,16,.52);
+      z-index:1000;
+      display:none;
+      backdrop-filter: blur(4px);
+    }
+    .{{ mm_ns }}-modal{
+      position:fixed;
+      top:50%;
+      left:50%;
+      transform:translate(-50%,-50%);
+      width:min(680px, 92vw);
+      max-height:82vh;
+      overflow:auto;
+      background:#fff;
+      border-radius:18px;
+      box-shadow: 0 30px 80px rgba(0,0,0,.22);
+      z-index:1001;
+      display:none;
+    }
+    .{{ mm_ns }}-modal-header{
+      padding:16px 18px;
+      border-bottom:1px solid #eee;
+      font-weight:800;
+      color: var(--mm-text);
+    }
+    .{{ mm_ns }}-modal-body{ padding:18px; }
+    .{{ mm_ns }}-modal-close{
+      position:absolute;
+      top:10px;
+      right:12px;
+      border:1px solid var(--mm-border);
+      background:#fff;
+      cursor:pointer;
+      width:36px;
+      height:36px;
+      border-radius:10px;
+      color: var(--mm-text);
+    }
+
+    .{{ mm_ns }}-prompt .{{ mm_ns }}-prompt__actions{
+      display:flex;
+      gap:8px;
+      justify-content:flex-end;
+      margin-top: 14px;
+    }
+    .{{ mm_ns }}-btn{
+      border:1px solid var(--mm-border);
+      background:#fff;
+      border-radius:12px;
+      padding:10px 14px;
+      cursor:pointer;
+      font-weight:600;
+    }
+    .{{ mm_ns }}-btn--primary{
+      border-color:var(--mm-accent);
+      color:#fff;
+      background:var(--mm-accent);
+    }
+
+    .{{ mm_ns }}-zoom{
+      width:min(980px, 94vw);
+      max-height: 92vh;
+      padding: 0;
+      background: #fff;
+      overflow: hidden;
+    }
+    .{{ mm_ns }}-zoomstage{
+      display:grid;
+      grid-template-columns: 1fr;
+      gap:0;
+      min-height: 320px;
+      background: #fff;
+    }
+    .{{ mm_ns }}-zoommedia{
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding: 24px;
+      background:
+        linear-gradient(180deg, #fbfbfc 0%, #f4f5f7 100%);
+      min-height: 420px;
+    }
+    .{{ mm_ns }}-zoommedia img{
+      max-width:100%;
+      max-height:70vh;
+      width:auto;
+      height:auto;
+      object-fit:contain;
+      border-radius:14px;
+    }
+    .{{ mm_ns }}-zoommeta{
+      padding: 14px 18px 18px;
+      border-top:1px solid var(--mm-border);
+    }
+    .{{ mm_ns }}-zoomtitle{
+      margin:0 0 4px;
+      font-size:18px;
+      font-weight:800;
+      color: var(--mm-text);
+    }
+    .{{ mm_ns }}-zoomsub{
+      margin:0;
+      color: var(--mm-muted);
+      font-size:13px;
+    }
+
+    .{{ mm_ns }}-notice{
+      margin-top:8px;
+      color: var(--mm-muted);
+      font-size:12px;
+      text-align:center;
+    }
+
+    .{{ mm_ns }}-add:focus-visible,
+    .{{ mm_ns }}-qty button:focus-visible,
+    .{{ mm_ns }}-cta:focus-visible,
+    .{{ mm_ns }}-seeall:focus-visible,
+    .{{ mm_ns }}-imgbtn:focus-visible,
+    .{{ mm_ns }}-btn:focus-visible,
+    .{{ mm_ns }}-modal-close:focus-visible{
+      outline: 3px solid rgba(255, 47, 135, .26);
+      outline-offset: 2px;
+    }
+
+    @media (max-width: 749px){
+      .{{ mm_ns }}-inner{
+        grid-template-columns: 76px 1fr;
+      }
+      .{{ mm_ns }}-actions{
+        grid-column: 1 / -1;
+        width:100%;
+        margin-left:0;
+        align-items:stretch;
+      }
+      .{{ mm_ns }}-add,
+      .{{ mm_ns }}-qty{
+        width:100%;
+        justify-content:center;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce){
+      .{{ mm_ns }}-card,
+      .{{ mm_ns }}-add,
+      .{{ mm_ns }}-qty button,
+      .{{ mm_ns }}-cta,
+      .{{ mm_ns }}-seeall,
+      .{{ mm_ns }}-imgbtn img{
+        transition:none !important;
+      }
+      html:focus-within { scroll-behavior: auto; }
+    }
+  </style>
+
+  <div class="{{ mm_ns }}-header">
+    <h3 class="{{ mm_ns }}-title">{{ title_text }}</h3>
+    {% if subtitle_text != blank %}
+      <p class="{{ mm_ns }}-subtitle">{{ subtitle_text }}</p>
+    {% endif %}
+  </div>
+
+  <div class="{{ mm_ns }}-sr-only" aria-live="polite" data-mm-status></div>
+
+  <div class="{{ mm_ns }}-tiers" data-mm-tiers>
+    {% assign tiers = '' %}
+    {% if t1_enabled %}{% assign tiers = tiers | append: '1' %}{% endif %}
+    {% if t2_enabled %}{% if tiers != blank %}{% assign tiers = tiers | append: ',' %}{% endif %}{% assign tiers = tiers | append: '2' %}{% endif %}
+    {% if t3_enabled %}{% if tiers != blank %}{% assign tiers = tiers | append: ',' %}{% endif %}{% assign tiers = tiers | append: '3' %}{% endif %}
+
+    {% assign tier_list = tiers | split: ',' %}
+    {% for t in tier_list %}
+      {% assign idx = t | plus: 0 %}
+      {% assign minv = 0 %}{% assign maxv = 0 %}{% assign offv = 0 %}{% assign labelv = '' %}{% assign namev = '' %}{% assign showname = false %}{% assign icon = nil %}
+      {% if idx == 1 %}{% assign minv = t1_min %}{% assign maxv = t1_max %}{% assign offv = t1_off %}{% assign labelv = t1_label %}{% assign showname = t1_show_name %}{% assign namev = t1_name %}{% assign icon = t1_icon %}{% endif %}
+      {% if idx == 2 %}{% assign minv = t2_min %}{% assign maxv = t2_max %}{% assign offv = t2_off %}{% assign labelv = t2_label %}{% assign showname = t2_show_name %}{% assign namev = t2_name %}{% assign icon = t2_icon %}{% endif %}
+      {% if idx == 3 %}{% assign minv = t3_min %}{% assign maxv = t3_max %}{% assign offv = t3_off %}{% assign labelv = t3_label %}{% assign showname = t3_show_name %}{% assign namev = t3_name %}{% assign icon = t3_icon %}{% endif %}
+
+      <div class="{{ mm_ns }}-tier" data-tier data-min="{{ minv }}" data-max="{{ maxv }}" data-off="{{ offv }}">
+        <span class="chk" aria-hidden="true">
+          <svg viewBox="0 0 20 20" fill="#fff" xmlns="http://www.w3.org/2000/svg"><path d="M7.8 13.4 4.6 10.2 3.2 11.6 7.8 16.2 17 7 15.6 5.6z"/></svg>
+        </span>
+        <div class="{{ mm_ns }}-tier-top">
+          {% if icon != blank %}
+            {% assign icon_alt = labelv | default: '' %}
+            {{ icon
+               | image_url: width: 60
+               | image_tag:
+                  alt: icon_alt,
+                  loading: 'lazy',
+                  widths: '60,120',
+                  sizes: '60px',
+                  class: 'mm-tier__icon'
+            }}
+          {% endif %}
+          <div>
+            <div class="{{ mm_ns }}-tier-label">
+              {% if labelv != blank %}
+                {{ labelv }}
+              {% else %}
+                {% if maxv > 0 %}{{ minv }}–{{ maxv }}{% else %}{{ minv }}+{% endif %}
+              {% endif %}
+            </div>
+            {% if showname and namev != blank %}
+              <div class="{{ mm_ns }}-tier-line">{{ namev }}</div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+
+  <div class="{{ mm_ns }}-list" data-mm-list data-mode="{{ display_mode_val }}">
+    {% for v in product.variants %}
+      {% assign is_avail = v.available %}
+      {% assign img_obj = v.featured_image | default: product.featured_image %}
+      <div
+        class="{{ mm_ns }}-card {% unless is_avail %}is-oos{% endunless %}"
+        data-vid="{{ v.id }}"
+        data-price="{{ v.price }}"
+        data-title="{{ v.title | escape }}"
+        data-avail="{{ is_avail }}"
+        {% if img_obj %}
+          data-image-src="{{ img_obj | image_url: width: 1600 }}"
+          data-image-alt="{{ v.title | escape }}"
+        {% endif %}
+      >
+        {% unless is_avail %}
+          <span class="{{ mm_ns }}-badge">Out of stock</span>
+        {% endunless %}
+
+        <div class="{{ mm_ns }}-inner">
+          {% if show_imgs %}
+            <div class="{{ mm_ns }}-img">
+              {% if img_obj %}
+                <button
+                  class="{{ mm_ns }}-imgbtn"
+                  type="button"
+                  aria-label="Zoom image for {{ v.title | escape }}"
+                  data-mm-zoom
+                >
+                  {{ img_obj
+                    | image_url: width: 384, height: 384, crop: 'center'
+                    | image_tag:
+                      loading: forloop.index <= 4 ? 'eager' : 'lazy',
+                      width: 84,
+                      height: 84,
+                      alt: v.title,
+                      widths: '84,168,252,336,384',
+                      sizes: '(min-width: 990px) 84px, 84px'
+                  }}
+                  <span class="{{ mm_ns }}-zoomhint">Zoom</span>
+                </button>
+              {% else %}
+                <span style="font-size:12px; color:#667085; padding:6px; text-align:center;">No image</span>
+              {% endif %}
+            </div>
+          {% endif %}
+
+          <div class="{{ mm_ns }}-meta">
+            <h4 class="{{ mm_ns }}-name">{{ v.title }}</h4>
+            <div class="{{ mm_ns }}-prices">
+              {% if v.compare_at_price > v.price %}
+                <span class="compare">{{ v.compare_at_price | money }}</span>
+              {% endif %}
+              <span class="price">{{ v.price | money }}</span>
+            </div>
+          </div>
+
+          <div class="{{ mm_ns }}-actions">
+            {% if is_avail %}
+              <button class="{{ mm_ns }}-add" type="button">
+                {% if add_label != blank %}{{ add_label }}{% else %}Add{% endif %}
+              </button>
+              <div class="{{ mm_ns }}-qty" aria-hidden="true">
+                <button class="dec" type="button" aria-label="Decrease quantity for {{ v.title | escape }}">−</button>
+                <span class="val" aria-live="polite">0</span>
+                <button class="inc" type="button" aria-label="Increase quantity for {{ v.title | escape }}">+</button>
+              </div>
+            {% else %}
+              <button class="{{ mm_ns }}-add" type="button" disabled title="Out of stock">Out of stock</button>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+
+  <div class="{{ mm_ns }}-footer">
+    <div class="{{ mm_ns }}-save" data-savecard style="display:none">
+      <span class="label">You Saved</span>
+      <strong class="val" data-saveval>$0.00</strong>
+      <span class="cele" aria-hidden="true">🎉</span>
+    </div>
+
+    <button class="{{ mm_ns }}-cta" type="button" data-cta>
+      <span data-cta-label>{{ cta_label | default: 'Add bundle' }}</span>
+    </button>
+
+    <button class="{{ mm_ns }}-seeall" type="button" data-seeall>See all</button>
+    <div class="{{ mm_ns }}-notice" data-mm-summary>0 items selected</div>
+  </div>
+
+  <div class="{{ mm_ns }}-overlay" data-overlay></div>
+  <div class="{{ mm_ns }}-modal" role="dialog" aria-modal="true" aria-label="{{ bundle_name | default: 'Bundle' }}" data-modal>
+    <button class="{{ mm_ns }}-modal-close" type="button" aria-label="Close" data-close>✕</button>
+    <div class="{{ mm_ns }}-modal-header">{{ bundle_name | default: 'Your bundle' }}</div>
+    <div class="{{ mm_ns }}-modal-body" data-modal-body></div>
+  </div>
+
+  <div class="{{ mm_ns }}-overlay" data-prompt-overlay style="display:none"></div>
+  <div class="{{ mm_ns }}-modal {{ mm_ns }}-prompt" role="dialog" aria-modal="true" aria-label="Bundle tip" data-prompt style="display:none">
+    <div class="{{ mm_ns }}-modal-header">{{ bundle_name | default: 'Your bundle' }}</div>
+    <div class="{{ mm_ns }}-modal-body">
+      <p class="{{ mm_ns }}-prompt__text">{{ prompt_question }}</p>
+      <div class="{{ mm_ns }}-prompt__actions">
+        <button type="button" class="{{ mm_ns }}-btn" data-prompt-skip>{{ prompt_skip_label }}</button>
+        <button type="button" class="{{ mm_ns }}-btn {{ mm_ns }}-btn--primary" data-prompt-doit>{{ prompt_do_label }}</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="{{ mm_ns }}-overlay" data-zoom-overlay style="display:none"></div>
+  <div class="{{ mm_ns }}-modal {{ mm_ns }}-zoom" role="dialog" aria-modal="true" aria-label="Product image zoom" data-zoom-modal style="display:none">
+    <button class="{{ mm_ns }}-modal-close" type="button" aria-label="Close zoom view" data-zoom-close>✕</button>
+    <div class="{{ mm_ns }}-zoomstage">
+      <div class="{{ mm_ns }}-zoommedia">
+        <img src="" alt="" data-zoom-image>
+      </div>
+      <div class="{{ mm_ns }}-zoommeta">
+        <h4 class="{{ mm_ns }}-zoomtitle" data-zoom-title></h4>
+        <p class="{{ mm_ns }}-zoomsub">Tap or click outside to close</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var script = document.currentScript;
+  if (!script) return;
+  var wrap = script.previousElementSibling;
+  if (!wrap || !wrap.matches('[data-mm]')) return;
+
+  var mode = wrap.getAttribute('data-mode') || 'grid';
+  var list = wrap.querySelector('[data-mm-list]');
+  if (list) list.setAttribute('data-mode', mode);
+
+  var statusEl = wrap.querySelector('[data-mm-status]');
+  var summaryEl = wrap.querySelector('[data-mm-summary]');
+  var seeAllBtn = wrap.querySelector('[data-seeall]');
+  var modal = wrap.querySelector('[data-modal]');
+  var overlay = wrap.querySelector('[data-overlay]');
+  var modalBody = wrap.querySelector('[data-modal-body]');
+  var ctaBtn = wrap.querySelector('[data-cta]');
+  var ctaLabelEl = wrap.querySelector('[data-cta-label]');
+  var enableConfetti = {{ enable_confetti | default: true | json }};
+
+  var promptEnable = {{ prompt_enable | default: true | json }};
+  var promptThreshold = {{ prompt_threshold | default: 3 | json }};
+  var promptWrap = wrap.querySelector('[data-prompt]');
+  var promptOverlay = wrap.querySelector('[data-prompt-overlay]');
+  var promptSkipBtn = wrap.querySelector('[data-prompt-skip]');
+  var promptDoBtn = wrap.querySelector('[data-prompt-doit]');
+  var pendingItems = null;
+
+  var zoomOverlay = wrap.querySelector('[data-zoom-overlay]');
+  var zoomModal = wrap.querySelector('[data-zoom-modal]');
+  var zoomClose = wrap.querySelector('[data-zoom-close]');
+  var zoomImage = wrap.querySelector('[data-zoom-image]');
+  var zoomTitle = wrap.querySelector('[data-zoom-title]');
+
+  var state = {};
+  var total = 0;
+  var lastFocusedElement = null;
+
+  function announce(msg){
+    if (statusEl) statusEl.textContent = msg || '';
+  }
+
+  function updateSummary(){
+    if (!summaryEl) return;
+    summaryEl.textContent = total === 1 ? '1 item selected' : total + ' items selected';
+  }
+
+  function updateTierActive() {
+    var tiers = wrap.querySelectorAll('[data-tier]');
+    tiers.forEach(function(t){
+      var minv = parseInt(t.getAttribute('data-min'),10) || 0;
+      var maxv = parseInt(t.getAttribute('data-max'),10) || 0;
+      if (total >= minv && (maxv === 0 || total <= maxv)) {
+        t.classList.add('is-active');
+      } else {
+        t.classList.remove('is-active');
+      }
+    });
+  }
+
+  function updateSeeAllVisibility(){
+    if (!seeAllBtn) return;
+    seeAllBtn.style.display = total > 0 ? 'inline-block' : 'none';
+  }
+
+  function getActiveDiscountPercent(){
+    var tiers = Array.from(wrap.querySelectorAll('[data-tier]'));
+    var pct = 0;
+    tiers.forEach(function(t){
+      var minv = parseInt(t.getAttribute('data-min'),10) || 0;
+      var maxv = parseInt(t.getAttribute('data-max'),10) || 0;
+      var offv = parseInt(t.getAttribute('data-off'),10) || 0;
+      var inRange = total >= minv && (maxv === 0 || total <= maxv);
+      if (inRange && offv > pct) pct = offv;
+    });
+    return pct;
+  }
+
+  function moneyCents(cents){
+    try{
+      var cur = (window.Shopify && Shopify.currency && Shopify.currency.active) || 'USD';
+      return new Intl.NumberFormat(undefined, {
+        style: 'currency',
+        currency: cur
+      }).format((cents || 0) / 100);
+    } catch(e){
+      return '$' + ((cents || 0) / 100).toFixed(2);
+    }
+  }
+
+  function updateDynamicPrices(){
+    var pct = getActiveDiscountPercent();
+
+    wrap.querySelectorAll('.{{ mm_ns }}-card').forEach(function(card){
+      var priceCents = parseInt(card.getAttribute('data-price') || '0', 10);
+      var priceEl = card.querySelector('.{{ mm_ns }}-prices .price');
+      var compareEl = card.querySelector('.{{ mm_ns }}-prices .compare');
+      if (!priceEl) return;
+
+      if (pct > 0){
+        var discounted = Math.round(priceCents * (100 - pct) / 100);
+
+        if (!compareEl){
+          compareEl = document.createElement('span');
+          compareEl.className = 'compare';
+          priceEl.parentNode.insertBefore(compareEl, priceEl);
+        }
+
+        compareEl.textContent = moneyCents(priceCents);
+        priceEl.textContent = moneyCents(discounted);
+      } else {
+        if (compareEl && compareEl.textContent && card.getAttribute('data-price')){
+          compareEl.textContent = '';
+        }
+        priceEl.textContent = moneyCents(priceCents);
+      }
+    });
+  }
+
+  function updateSavingsCard(){
+    var saveWrap = wrap.querySelector('[data-savecard]');
+    var saveVal = wrap.querySelector('[data-saveval]');
+    if (!saveWrap || !saveVal) return;
+
+    var pct = getActiveDiscountPercent();
+    var subtotalRetail = 0;
+
+    Object.keys(state).forEach(function(vid){
+      var q = state[vid] || 0;
+      if (!q) return;
+      var card = wrap.querySelector('[data-vid="' + vid + '"]');
+      var c = card ? parseInt(card.getAttribute('data-price') || '0', 10) : 0;
+      subtotalRetail += q * c;
+    });
+
+    var saved = Math.round(subtotalRetail * pct / 100);
+
+    if (total > 0 && pct > 0 && saved > 0){
+      saveVal.textContent = moneyCents(saved);
+      saveWrap.style.display = 'flex';
+    } else {
+      saveWrap.style.display = 'none';
+    }
+  }
+
+  function renderModal(){
+    if (!modalBody) return;
+    modalBody.innerHTML = '';
+    var entries = Object.keys(state).filter(function(k){ return state[k] > 0; });
+
+    if (entries.length === 0){
+      modalBody.innerHTML = '<p style="opacity:.7; margin:0;">No items added yet.</p>';
+      return;
+    }
+
+    var ul = document.createElement('ul');
+    ul.style.listStyle = 'none';
+    ul.style.padding = '0';
+    ul.style.margin = '0';
+
+    entries.forEach(function(vid){
+      var card = wrap.querySelector('[data-vid="' + vid + '"]');
+      var li = document.createElement('li');
+      li.style.display = 'grid';
+      li.style.gridTemplateColumns = '52px 1fr auto';
+      li.style.alignItems = 'center';
+      li.style.gap = '12px';
+      li.style.padding = '10px 0';
+      li.style.borderBottom = '1px solid #f0f2f5';
+
+      var imgWrap = document.createElement('div');
+      imgWrap.style.width = '52px';
+      imgWrap.style.height = '52px';
+      imgWrap.style.borderRadius = '10px';
+      imgWrap.style.overflow = 'hidden';
+      imgWrap.style.background = '#f5f5f7';
+      imgWrap.style.border = '1px solid #e5e7eb';
+
+      var imgEl = card ? card.querySelector('.{{ mm_ns }}-img img') : null;
+      if (imgEl){
+        var clone = imgEl.cloneNode();
+        clone.width = 52;
+        clone.height = 52;
+        clone.style.width = '100%';
+        clone.style.height = '100%';
+        clone.style.objectFit = 'cover';
+        imgWrap.appendChild(clone);
+      }
+
+      li.appendChild(imgWrap);
+
+      var meta = document.createElement('div');
+      var name = card ? card.querySelector('.{{ mm_ns }}-name') : null;
+      meta.innerHTML = '<div style="font-weight:700; color:#111827;">' + (name ? name.textContent : '') + '</div><div style="color:#667085; font-size:13px;">Qty: ' + state[vid] + '</div>';
+      li.appendChild(meta);
+
+      var trash = document.createElement('button');
+      trash.type = 'button';
+      trash.textContent = 'Remove';
+      trash.setAttribute('aria-label', 'Remove item');
+      trash.style.border = '1px solid #e2e5ea';
+      trash.style.background = '#fff';
+      trash.style.padding = '9px 12px';
+      trash.style.borderRadius = '10px';
+      trash.style.cursor = 'pointer';
+      trash.style.fontWeight = '600';
+      trash.addEventListener('click', function(){
+        setQty(vid, 0);
+        renderModal();
+      });
+
+      li.appendChild(trash);
+      ul.appendChild(li);
+    });
+
+    modalBody.appendChild(ul);
+  }
+
+  function lockScroll(){ document.documentElement.style.overflow = 'hidden'; }
+  function unlockScroll(){ document.documentElement.style.overflow = ''; }
+
+  function openModal(){
+    if (!modal || !overlay) return;
+    lastFocusedElement = document.activeElement;
+    renderModal();
+    overlay.style.display = 'block';
+    modal.style.display = 'block';
+    lockScroll();
+    var closeBtn = modal.querySelector('[data-close]');
+    if (closeBtn) closeBtn.focus();
+  }
+
+  function closeModal(){
+    if (!modal || !overlay) return;
+    modal.style.display = 'none';
+    overlay.style.display = 'none';
+    unlockScroll();
+    if (lastFocusedElement) lastFocusedElement.focus();
+  }
+
+  function openZoom(card){
+    if (!zoomOverlay || !zoomModal || !zoomImage) return;
+    lastFocusedElement = document.activeElement;
+
+    var src = card.getAttribute('data-image-src');
+    var alt = card.getAttribute('data-image-alt') || '';
+    var title = card.getAttribute('data-title') || '';
+
+    if (!src) return;
+
+    zoomImage.src = src;
+    zoomImage.alt = alt;
+    if (zoomTitle) zoomTitle.textContent = title;
+
+    zoomOverlay.style.display = 'block';
+    zoomModal.style.display = 'block';
+    lockScroll();
+    if (zoomClose) zoomClose.focus();
+  }
+
+  function closeZoom(){
+    if (!zoomOverlay || !zoomModal) return;
+    zoomModal.style.display = 'none';
+    zoomOverlay.style.display = 'none';
+    if (zoomImage){
+      zoomImage.src = '';
+      zoomImage.alt = '';
+    }
+    unlockScroll();
+    if (lastFocusedElement) lastFocusedElement.focus();
+  }
+
+  if (seeAllBtn) seeAllBtn.addEventListener('click', openModal);
+  if (overlay) overlay.addEventListener('click', closeModal);
+  if (modal){
+    var closeBtn = modal.querySelector('[data-close]');
+    if (closeBtn) closeBtn.addEventListener('click', closeModal);
+  }
+
+  if (zoomOverlay) zoomOverlay.addEventListener('click', closeZoom);
+  if (zoomClose) zoomClose.addEventListener('click', closeZoom);
+
+  function setQty(vid, qty){
+    qty = Math.max(0, qty);
+    state[vid] = qty;
+
+    var card = wrap.querySelector('[data-vid="' + vid + '"]');
+    if (card){
+      var addBtn = card.querySelector('.{{ mm_ns }}-add');
+      var qtyBox = card.querySelector('.{{ mm_ns }}-qty');
+      var val = card.querySelector('.{{ mm_ns }}-qty .val');
+
+      if (val) val.textContent = qty;
+
+      if (qty > 0){
+        card.classList.add('selected');
+        if (qtyBox){
+          qtyBox.style.display = 'flex';
+          qtyBox.setAttribute('aria-hidden', 'false');
+        }
+        if (addBtn) addBtn.style.display = 'none';
+      } else {
+        card.classList.remove('selected');
+        if (qtyBox){
+          qtyBox.style.display = 'none';
+          qtyBox.setAttribute('aria-hidden', 'true');
+        }
+        if (addBtn) addBtn.style.display = 'inline-flex';
+      }
+    }
+
+    total = 0;
+    Object.keys(state).forEach(function(k){ total += state[k]; });
+
+    updateTierActive();
+    updateSeeAllVisibility();
+    updateDynamicPrices();
+    updateSavingsCard();
+    updateSummary();
+
+    announce(total === 1 ? '1 item selected' : total + ' items selected');
+  }
+
+  wrap.querySelectorAll('.{{ mm_ns }}-card').forEach(function(card){
+    var vid = card.getAttribute('data-vid');
+    state[vid] = 0;
+
+    if (card.getAttribute('data-avail') === 'false') return;
+
+    var addBtn = card.querySelector('.{{ mm_ns }}-add');
+    var inc = card.querySelector('.inc');
+    var dec = card.querySelector('.dec');
+    var zoomBtn = card.querySelector('[data-mm-zoom]');
+
+    if (addBtn){
+      addBtn.addEventListener('click', function(){
+        setQty(vid, (state[vid] || 0) + 1);
+      });
+    }
+
+    if (inc){
+      inc.addEventListener('click', function(){
+        setQty(vid, (state[vid] || 0) + 1);
+      });
+    }
+
+    if (dec){
+      dec.addEventListener('click', function(){
+        setQty(vid, (state[vid] || 0) - 1);
+      });
+    }
+
+    if (zoomBtn){
+      zoomBtn.addEventListener('click', function(){
+        openZoom(card);
+      });
+    }
+  });
+
+  function violatesConstraint(){
+    var enforceExact = {{ enforce_exact | default: false | json }};
+    var exactQty = {{ exact_qty | default: 0 | json }};
+    if (enforceExact && exactQty > 0) return total !== exactQty;
+    return false;
+  }
+
+  function resetAll(){
+    wrap.querySelectorAll('.{{ mm_ns }}-card').forEach(function(card){
+      var vid = card.getAttribute('data-vid');
+      state[vid] = 0;
+    });
+
+    wrap.querySelectorAll('.{{ mm_ns }}-card').forEach(function(card){
+      var vid = card.getAttribute('data-vid');
+      setQty(vid, 0);
+    });
+
+    updateTierActive();
+    updateSeeAllVisibility();
+    updateDynamicPrices();
+    updateSavingsCard();
+    updateSummary();
+    closeModal();
+    announce('Bundle added to cart.');
+  }
+
+  function showPrompt(items){
+    if (!promptEnable || !promptWrap || !promptOverlay) return false;
+    lastFocusedElement = document.activeElement;
+    pendingItems = items || null;
+    promptOverlay.style.display = 'block';
+    promptWrap.style.display = 'block';
+    lockScroll();
+    if (promptSkipBtn) promptSkipBtn.focus();
+    return true;
+  }
+
+  function hidePrompt(){
+    if (!promptWrap || !promptOverlay) return;
+    promptWrap.style.display = 'none';
+    promptOverlay.style.display = 'none';
+    unlockScroll();
+    if (lastFocusedElement) lastFocusedElement.focus();
+  }
+
+  if (promptSkipBtn){
+    promptSkipBtn.addEventListener('click', function(){
+      hidePrompt();
+      if (pendingItems && pendingItems.length) proceedAdd(pendingItems);
+      pendingItems = null;
+    });
+  }
+
+  if (promptDoBtn){
+    promptDoBtn.addEventListener('click', function(){
+      hidePrompt();
+      if (list){
+        list.scrollIntoView({ behavior:'smooth', block:'start' });
+      }
+      pendingItems = null;
+    });
+  }
+
+  if (promptOverlay){
+    promptOverlay.addEventListener('click', hidePrompt);
+  }
+
+  async function proceedAdd(items){
+    var originalLabel = ctaLabelEl ? ctaLabelEl.textContent : 'Add bundle';
+
+    try {
+      if (ctaBtn){
+        ctaBtn.disabled = true;
+        if (ctaLabelEl) ctaLabelEl.textContent = 'Adding…';
+      }
+
+      var addRes = await fetch('/cart/add.js', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({ items: items })
+      });
+
+      if (!addRes.ok){
+        var msg = 'Unable to add bundle. Please try again.';
+        try {
+          var j = await addRes.json();
+          if (j && (j.description || j.message)) msg = j.description || j.message;
+        } catch(_) {}
+        throw new Error(msg);
+      }
+
+      await addRes.json();
+
+      {% if discount_code != blank %}
+        try {
+          await fetch('/discount/{{ discount_code | url_encode }}', { credentials: 'same-origin' });
+        } catch(e){}
+      {% endif %}
+
+      try {
+        document.dispatchEvent(new CustomEvent('cart:refresh', { bubbles: true }));
+        document.dispatchEvent(new CustomEvent('ajaxProduct:added', { bubbles: true }));
+      } catch(e){}
+
+      await fetch('/cart.js', { headers: { 'Accept': 'application/json' } });
+
+      var trigger = document.querySelector('[data-cart-trigger], .js-drawer-open-cart');
+      if (trigger) trigger.click();
+
+      try {
+        document.dispatchEvent(new CustomEvent('theme:cart:open', { bubbles: true }));
+      } catch(e){}
+
+      if (enableConfetti) {
+        if (!window.confetti) {
+          var s = document.createElement('script');
+          s.src = 'https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js';
+          s.defer = true;
+          s.onload = function(){ fireConfetti(); };
+          document.head.appendChild(s);
+        } else {
+          fireConfetti();
+        }
+      }
+
+      resetAll();
+
+    } catch (e) {
+      console.error(e);
+      announce(e && e.message ? e.message : 'Unable to add bundle. Please try again.');
+      window.alert(e && e.message ? e.message : 'Unable to add bundle. Please try again.');
+    } finally {
+      if (ctaBtn){
+        ctaBtn.disabled = false;
+        if (ctaLabelEl) ctaLabelEl.textContent = originalLabel;
+      }
+    }
+  }
+
+  if (ctaBtn){
+    ctaBtn.addEventListener('click', function(){
+      var items = [];
+
+      Object.keys(state).forEach(function(vid){
+        var q = state[vid];
+        if (q > 0){
+          var card = wrap.querySelector('[data-vid="' + vid + '"]');
+          var avail = card ? card.getAttribute('data-avail') !== 'false' : true;
+          if (avail) {
+            items.push({ id: parseInt(vid, 10), quantity: q });
+          }
+        }
+      });
+
+      if (items.length === 0){
+        ctaBtn.style.transform = 'scale(1.02)';
+        setTimeout(function(){ ctaBtn.style.transform = ''; }, 140);
+        announce('Please add at least one item.');
+        return;
+      }
+
+      if (violatesConstraint()){
+        announce('Please adjust quantities to meet the bundle requirement.');
+        window.alert('Please adjust quantities to meet bundle requirement.');
+        return;
+      }
+
+      var th = parseInt(promptThreshold, 10) || 0;
+      if (promptEnable && th > 0 && total < th){
+        showPrompt(items);
+        return;
+      }
+
+      proceedAdd(items);
+    });
+  }
+
+  function fireConfetti(){
+    if (!window.confetti) return;
+    var count = 160;
+    var defaults = { origin: { y: 0.7 } };
+
+    function fire(particleRatio, opts){
+      confetti(Object.assign({}, defaults, opts, {
+        particleCount: Math.floor(count * particleRatio)
+      }));
+    }
+
+    fire(0.25, { spread: 26, startVelocity: 55 });
+    fire(0.2, { spread: 60 });
+    fire(0.35, { spread: 100, decay: 0.91, scalar: 0.8 });
+    fire(0.1, { spread: 120, startVelocity: 25, decay: 0.92, scalar: 1.2 });
+    fire(0.1, { spread: 120, startVelocity: 45 });
+  }
+
+  document.addEventListener('keydown', function(e){
+    if (e.key === 'Escape'){
+      closeModal();
+      hidePrompt();
+      closeZoom();
+    }
+  });
+
+  updateTierActive();
+  updateSeeAllVisibility();
+  updateDynamicPrices();
+  updateSavingsCard();
+  updateSummary();
+})();
+</script>
