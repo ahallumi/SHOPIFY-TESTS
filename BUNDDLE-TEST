@@ -654,6 +654,10 @@
           {% if show_imgs %}
             <div class="{{ mm_ns }}-img">
               {% if img_obj %}
+                {% assign image_loading = 'lazy' %}
+                {% if forloop.index <= 4 %}
+                  {% assign image_loading = 'eager' %}
+                {% endif %}
                 <button
                   class="{{ mm_ns }}-imgbtn"
                   type="button"
@@ -663,7 +667,7 @@
                   {{ img_obj
                     | image_url: width: 384, height: 384, crop: 'center'
                     | image_tag:
-                      loading: forloop.index <= 4 ? 'eager' : 'lazy',
+                      loading: image_loading,
                       width: 84,
                       height: 84,
                       alt: v.title,
