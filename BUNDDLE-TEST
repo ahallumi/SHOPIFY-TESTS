@@ -762,6 +762,7 @@
 
 <script>
 (function(){
+  var zoomPlaceholder = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==';
   var script = document.currentScript;
   if (!script) return;
   var wrap = script.previousElementSibling;
