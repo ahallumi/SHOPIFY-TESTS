@@ -793,7 +793,7 @@
   var zoomOverlay = wrap.querySelector('[data-zoom-overlay]');
   var zoomModal = wrap.querySelector('[data-zoom-modal]');
   var zoomClose = wrap.querySelector('[data-zoom-close]');
-  var zoomImage = wrap.querySelector('[data-zoom-image]');
+  var zoomImageHost = wrap.querySelector('[data-zoom-image]');
   var zoomTitle = wrap.querySelector('[data-zoom-title]');
 
   var state = {};
@@ -1002,15 +1002,30 @@
     if (lastFocusedElement) lastFocusedElement.focus();
   }
 
+  function getZoomImage(){
+    if (!zoomImageHost) return null;
+
+    var img = zoomImageHost.querySelector('img');
+    if (!img){
+      img = document.createElement('img');
+      img.decoding = 'async';
+      img.alt = '';
+      zoomImageHost.appendChild(img);
+    }
+
+    return img;
+  }
+
   function openZoom(card){
-    if (!zoomOverlay || !zoomModal || !zoomImage) return;
+    if (!zoomOverlay || !zoomModal) return;
     lastFocusedElement = document.activeElement;
 
     var src = card.getAttribute('data-image-src');
     var alt = card.getAttribute('data-image-alt') || '';
     var title = card.getAttribute('data-title') || '';
+    var zoomImage = getZoomImage();
 
-    if (!src) return;
+    if (!src || !zoomImage) return;
 
     zoomImage.src = src;
     zoomImage.alt = alt;
