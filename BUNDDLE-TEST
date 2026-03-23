@@ -750,7 +750,7 @@
     <button class="{{ mm_ns }}-modal-close" type="button" aria-label="Close zoom view" data-zoom-close>✕</button>
     <div class="{{ mm_ns }}-zoomstage">
       <div class="{{ mm_ns }}-zoommedia">
-        <img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==" alt="" data-zoom-image hidden decoding="async">
+        <img alt="" data-zoom-image hidden decoding="async">
       </div>
       <div class="{{ mm_ns }}-zoommeta">
         <h4 class="{{ mm_ns }}-zoomtitle" data-zoom-title></h4>
@@ -1028,7 +1028,7 @@
     zoomModal.style.display = 'none';
     zoomOverlay.style.display = 'none';
     if (zoomImage){
-      zoomImage.src = zoomPlaceholder;
+      zoomImage.removeAttribute('src');
       zoomImage.alt = '';
       zoomImage.hidden = true;
     }
