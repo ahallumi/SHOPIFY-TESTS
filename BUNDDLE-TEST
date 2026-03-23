@@ -750,7 +750,7 @@
     <button class="{{ mm_ns }}-modal-close" type="button" aria-label="Close zoom view" data-zoom-close>✕</button>
     <div class="{{ mm_ns }}-zoomstage">
       <div class="{{ mm_ns }}-zoommedia">
-        <img src="" alt="" data-zoom-image>
+        <img alt="" data-zoom-image hidden decoding="async">
       </div>
       <div class="{{ mm_ns }}-zoommeta">
         <h4 class="{{ mm_ns }}-zoomtitle" data-zoom-title></h4>
@@ -1013,6 +1013,7 @@
 
     zoomImage.src = src;
     zoomImage.alt = alt;
+    zoomImage.hidden = false;
     if (zoomTitle) zoomTitle.textContent = title;
 
     zoomOverlay.style.display = 'block';
@@ -1026,8 +1027,9 @@
     zoomModal.style.display = 'none';
     zoomOverlay.style.display = 'none';
     if (zoomImage){
-      zoomImage.src = '';
+      zoomImage.removeAttribute('src');
       zoomImage.alt = '';
+      zoomImage.hidden = true;
     }
     unlockScroll();
     if (lastFocusedElement) lastFocusedElement.focus();
