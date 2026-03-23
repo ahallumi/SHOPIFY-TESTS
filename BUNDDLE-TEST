@@ -654,6 +654,10 @@
           {% if show_imgs %}
             <div class="{{ mm_ns }}-img">
               {% if img_obj %}
+                {% assign image_loading = 'lazy' %}
+                {% if forloop.index <= 4 %}
+                  {% assign image_loading = 'eager' %}
+                {% endif %}
                 <button
                   class="{{ mm_ns }}-imgbtn"
                   type="button"
@@ -663,7 +667,7 @@
                   {{ img_obj
                     | image_url: width: 384, height: 384, crop: 'center'
                     | image_tag:
-                      loading: forloop.index <= 4 ? 'eager' : 'lazy',
+                      loading: image_loading,
                       width: 84,
                       height: 84,
                       alt: v.title,
@@ -746,7 +750,7 @@
     <button class="{{ mm_ns }}-modal-close" type="button" aria-label="Close zoom view" data-zoom-close>✕</button>
     <div class="{{ mm_ns }}-zoomstage">
       <div class="{{ mm_ns }}-zoommedia">
-        <img src="" alt="" data-zoom-image>
+        <div data-zoom-image></div>
       </div>
       <div class="{{ mm_ns }}-zoommeta">
         <h4 class="{{ mm_ns }}-zoomtitle" data-zoom-title></h4>
@@ -788,7 +792,7 @@
   var zoomOverlay = wrap.querySelector('[data-zoom-overlay]');
   var zoomModal = wrap.querySelector('[data-zoom-modal]');
   var zoomClose = wrap.querySelector('[data-zoom-close]');
-  var zoomImage = wrap.querySelector('[data-zoom-image]');
+  var zoomImageHost = wrap.querySelector('[data-zoom-image]');
   var zoomTitle = wrap.querySelector('[data-zoom-title]');
 
   var state = {};
@@ -997,15 +1001,30 @@
     if (lastFocusedElement) lastFocusedElement.focus();
   }
 
+  function getZoomImage(){
+    if (!zoomImageHost) return null;
+
+    var img = zoomImageHost.querySelector('img');
+    if (!img){
+      img = document.createElement('img');
+      img.decoding = 'async';
+      img.alt = '';
+      zoomImageHost.appendChild(img);
+    }
+
+    return img;
+  }
+
   function openZoom(card){
-    if (!zoomOverlay || !zoomModal || !zoomImage) return;
+    if (!zoomOverlay || !zoomModal) return;
     lastFocusedElement = document.activeElement;
 
     var src = card.getAttribute('data-image-src');
     var alt = card.getAttribute('data-image-alt') || '';
     var title = card.getAttribute('data-title') || '';
+    var zoomImage = getZoomImage();
 
-    if (!src) return;
+    if (!src || !zoomImage) return;
 
     zoomImage.src = src;
     zoomImage.alt = alt;
@@ -1021,9 +1040,8 @@
     if (!zoomOverlay || !zoomModal) return;
     zoomModal.style.display = 'none';
     zoomOverlay.style.display = 'none';
-    if (zoomImage){
-      zoomImage.src = '';
-      zoomImage.alt = '';
+    if (zoomImageHost){
+      zoomImageHost.innerHTML = '';
     }
     unlockScroll();
     if (lastFocusedElement) lastFocusedElement.focus();
