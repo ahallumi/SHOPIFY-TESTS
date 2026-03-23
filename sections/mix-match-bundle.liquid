@@ -9,8 +9,61 @@
   - Keeps existing logic and rules
 {%- endcomment -%}
 
-{%- assign display_mode_val = display_mode | default: 'grid' -%}
 {%- assign mm_ns = 'mm' -%}
+{%- assign display_mode = section.settings.display_mode -%}
+{%- assign accent_hex = section.settings.accent_hex -%}
+{%- assign cta_bg = section.settings.cta_bg -%}
+{%- assign cta_text = section.settings.cta_text -%}
+{%- assign list_max_height = section.settings.list_max_height -%}
+{%- assign show_images = section.settings.show_images -%}
+{%- assign add_bold = section.settings.add_bold -%}
+{%- assign mm_title = section.settings.mm_title -%}
+{%- assign mm_subtitle = section.settings.mm_subtitle -%}
+{%- assign prompt_enable = section.settings.prompt_enable -%}
+{%- assign prompt_threshold = section.settings.prompt_threshold -%}
+{%- assign prompt_question = section.settings.prompt_question -%}
+{%- assign prompt_do_label = section.settings.prompt_do_label -%}
+{%- assign prompt_skip_label = section.settings.prompt_skip_label -%}
+{%- assign tier_bg = section.settings.tier_bg -%}
+{%- assign tier_text = section.settings.tier_text -%}
+{%- assign tier_active_bg = section.settings.tier_active_bg -%}
+{%- assign name_size = section.settings.name_size -%}
+{%- assign name_bold = section.settings.name_bold -%}
+{%- assign price_size = section.settings.price_size -%}
+{%- assign price_bold = section.settings.price_bold -%}
+{%- assign add_label = section.settings.add_label -%}
+{%- assign cta_label = section.settings.cta_label -%}
+{%- assign bundle_name = section.settings.bundle_name -%}
+{%- assign enable_confetti = section.settings.enable_confetti -%}
+{%- assign discount_code = section.settings.discount_code -%}
+{%- assign enforce_exact = section.settings.enforce_exact -%}
+{%- assign exact_qty = section.settings.exact_qty -%}
+{%- assign t1_enabled = section.settings.t1_enabled -%}
+{%- assign t1_min = section.settings.t1_min -%}
+{%- assign t1_max = section.settings.t1_max -%}
+{%- assign t1_off = section.settings.t1_off -%}
+{%- assign t1_label = section.settings.t1_label -%}
+{%- assign t1_show_name = section.settings.t1_show_name -%}
+{%- assign t1_name = section.settings.t1_name -%}
+{%- assign t1_icon = section.settings.t1_icon -%}
+{%- assign t2_enabled = section.settings.t2_enabled -%}
+{%- assign t2_min = section.settings.t2_min -%}
+{%- assign t2_max = section.settings.t2_max -%}
+{%- assign t2_off = section.settings.t2_off -%}
+{%- assign t2_label = section.settings.t2_label -%}
+{%- assign t2_show_name = section.settings.t2_show_name -%}
+{%- assign t2_name = section.settings.t2_name -%}
+{%- assign t2_icon = section.settings.t2_icon -%}
+{%- assign t3_enabled = section.settings.t3_enabled -%}
+{%- assign t3_min = section.settings.t3_min -%}
+{%- assign t3_max = section.settings.t3_max -%}
+{%- assign t3_off = section.settings.t3_off -%}
+{%- assign t3_label = section.settings.t3_label -%}
+{%- assign t3_show_name = section.settings.t3_show_name -%}
+{%- assign t3_name = section.settings.t3_name -%}
+{%- assign t3_icon = section.settings.t3_icon -%}
+
+{%- assign display_mode_val = display_mode | default: 'grid' -%}
 {%- assign accent = accent_hex | default: '#ff2f87' -%}
 {%- assign ctabg = cta_bg | default: '#111111' -%}
 {%- assign ctatx = cta_text | default: '#ffffff' -%}
@@ -26,6 +79,11 @@
 {%- assign prompt_do_label = prompt_do_label | default: 'Do it' -%}
 {%- assign prompt_skip_label = prompt_skip_label | default: 'Skip' -%}
 
+{% if product == blank %}
+  <div class="{{ mm_ns }}-wrap">
+    <p>This section only works on product templates because it reads from the current product’s variants.</p>
+  </div>
+{% else %}
 <div class="{{ mm_ns }}-wrap" data-mm data-mode="{{ display_mode_val }}" data-accent="{{ accent | escape }}">
   <style>
     .{{ mm_ns }}-wrap{
@@ -654,6 +712,10 @@
           {% if show_imgs %}
             <div class="{{ mm_ns }}-img">
               {% if img_obj %}
+                {% assign image_loading = 'lazy' %}
+                {% if forloop.index <= 4 %}
+                  {% assign image_loading = 'eager' %}
+                {% endif %}
                 <button
                   class="{{ mm_ns }}-imgbtn"
                   type="button"
@@ -663,7 +725,7 @@
                   {{ img_obj
                     | image_url: width: 384, height: 384, crop: 'center'
                     | image_tag:
-                      loading: forloop.index <= 4 ? 'eager' : 'lazy',
+                      loading: image_loading,
                       width: 84,
                       height: 84,
                       alt: v.title,
@@ -746,7 +808,7 @@
     <button class="{{ mm_ns }}-modal-close" type="button" aria-label="Close zoom view" data-zoom-close>✕</button>
     <div class="{{ mm_ns }}-zoomstage">
       <div class="{{ mm_ns }}-zoommedia">
-        <img src="" alt="" data-zoom-image>
+        <div data-zoom-image></div>
       </div>
       <div class="{{ mm_ns }}-zoommeta">
         <h4 class="{{ mm_ns }}-zoomtitle" data-zoom-title></h4>
@@ -788,7 +850,7 @@
   var zoomOverlay = wrap.querySelector('[data-zoom-overlay]');
   var zoomModal = wrap.querySelector('[data-zoom-modal]');
   var zoomClose = wrap.querySelector('[data-zoom-close]');
-  var zoomImage = wrap.querySelector('[data-zoom-image]');
+  var zoomImageHost = wrap.querySelector('[data-zoom-image]');
   var zoomTitle = wrap.querySelector('[data-zoom-title]');
 
   var state = {};
@@ -997,15 +1059,30 @@
     if (lastFocusedElement) lastFocusedElement.focus();
   }
 
+  function getZoomImage(){
+    if (!zoomImageHost) return null;
+
+    var img = zoomImageHost.querySelector('img');
+    if (!img){
+      img = document.createElement('img');
+      img.decoding = 'async';
+      img.alt = '';
+      zoomImageHost.appendChild(img);
+    }
+
+    return img;
+  }
+
   function openZoom(card){
-    if (!zoomOverlay || !zoomModal || !zoomImage) return;
+    if (!zoomOverlay || !zoomModal) return;
     lastFocusedElement = document.activeElement;
 
     var src = card.getAttribute('data-image-src');
     var alt = card.getAttribute('data-image-alt') || '';
     var title = card.getAttribute('data-title') || '';
+    var zoomImage = getZoomImage();
 
-    if (!src) return;
+    if (!src || !zoomImage) return;
 
     zoomImage.src = src;
     zoomImage.alt = alt;
@@ -1021,9 +1098,8 @@
     if (!zoomOverlay || !zoomModal) return;
     zoomModal.style.display = 'none';
     zoomOverlay.style.display = 'none';
-    if (zoomImage){
-      zoomImage.src = '';
-      zoomImage.alt = '';
+    if (zoomImageHost){
+      zoomImageHost.innerHTML = '';
     }
     unlockScroll();
     if (lastFocusedElement) lastFocusedElement.focus();
@@ -1330,3 +1406,389 @@
   updateSummary();
 })();
 </script>
+{% endif %}
+
+{% schema %}
+{
+  "name": "Mix & Match bundle",
+  "enabled_on": {
+    "templates": ["product"]
+  },
+  "settings": [
+    {
+      "type": "text",
+      "id": "mm_title",
+      "label": "Heading",
+      "default": "Pick & mix your flavors"
+    },
+    {
+      "type": "textarea",
+      "id": "mm_subtitle",
+      "label": "Subheading",
+      "default": "Build a bundle from this product’s variants."
+    },
+    {
+      "type": "select",
+      "id": "display_mode",
+      "label": "Layout",
+      "default": "grid",
+      "options": [
+        { "value": "grid", "label": "Grid" },
+        { "value": "list", "label": "List" },
+        { "value": "compact", "label": "Compact" }
+      ]
+    },
+    {
+      "type": "range",
+      "id": "list_max_height",
+      "label": "List max height",
+      "min": 0,
+      "max": 1200,
+      "step": 20,
+      "unit": "px",
+      "default": 700
+    },
+    {
+      "type": "checkbox",
+      "id": "show_images",
+      "label": "Show variant images",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "name_bold",
+      "label": "Bold product names",
+      "default": true
+    },
+    {
+      "type": "range",
+      "id": "name_size",
+      "label": "Product name size",
+      "min": 12,
+      "max": 24,
+      "step": 1,
+      "unit": "px",
+      "default": 16
+    },
+    {
+      "type": "checkbox",
+      "id": "price_bold",
+      "label": "Bold prices",
+      "default": true
+    },
+    {
+      "type": "range",
+      "id": "price_size",
+      "label": "Price size",
+      "min": 12,
+      "max": 24,
+      "step": 1,
+      "unit": "px",
+      "default": 16
+    },
+    {
+      "type": "checkbox",
+      "id": "add_bold",
+      "label": "Bold add button label",
+      "default": true
+    },
+    {
+      "type": "text",
+      "id": "add_label",
+      "label": "Add button label",
+      "default": "Add"
+    },
+    {
+      "type": "text",
+      "id": "cta_label",
+      "label": "Footer CTA label",
+      "default": "Add bundle"
+    },
+    {
+      "type": "text",
+      "id": "bundle_name",
+      "label": "Bundle name",
+      "default": "Your bundle"
+    },
+    {
+      "type": "color",
+      "id": "accent_hex",
+      "label": "Accent color",
+      "default": "#ff2f87"
+    },
+    {
+      "type": "color",
+      "id": "cta_bg",
+      "label": "CTA background",
+      "default": "#111111"
+    },
+    {
+      "type": "color",
+      "id": "cta_text",
+      "label": "CTA text color",
+      "default": "#ffffff"
+    },
+    {
+      "type": "color",
+      "id": "tier_bg",
+      "label": "Tier background",
+      "default": "#f7f8fa"
+    },
+    {
+      "type": "color",
+      "id": "tier_text",
+      "label": "Tier text",
+      "default": "#0f1115"
+    },
+    {
+      "type": "color",
+      "id": "tier_active_bg",
+      "label": "Active tier background",
+      "default": "#f2fff6"
+    },
+    {
+      "type": "checkbox",
+      "id": "prompt_enable",
+      "label": "Enable upsell prompt",
+      "default": true
+    },
+    {
+      "type": "range",
+      "id": "prompt_threshold",
+      "label": "Prompt when selected items are below",
+      "min": 1,
+      "max": 12,
+      "step": 1,
+      "default": 3
+    },
+    {
+      "type": "text",
+      "id": "prompt_question",
+      "label": "Prompt message",
+      "default": "Add one more to unlock the bundle discount?"
+    },
+    {
+      "type": "text",
+      "id": "prompt_do_label",
+      "label": "Prompt confirm label",
+      "default": "Do it"
+    },
+    {
+      "type": "text",
+      "id": "prompt_skip_label",
+      "label": "Prompt skip label",
+      "default": "Skip"
+    },
+    {
+      "type": "checkbox",
+      "id": "enable_confetti",
+      "label": "Enable confetti after add to cart",
+      "default": true
+    },
+    {
+      "type": "text",
+      "id": "discount_code",
+      "label": "Discount code (optional)"
+    },
+    {
+      "type": "checkbox",
+      "id": "enforce_exact",
+      "label": "Require an exact item count",
+      "default": false
+    },
+    {
+      "type": "range",
+      "id": "exact_qty",
+      "label": "Exact item count",
+      "min": 0,
+      "max": 24,
+      "step": 1,
+      "default": 0
+    },
+    {
+      "type": "header",
+      "content": "Tier 1"
+    },
+    {
+      "type": "checkbox",
+      "id": "t1_enabled",
+      "label": "Enable tier 1",
+      "default": true
+    },
+    {
+      "type": "range",
+      "id": "t1_min",
+      "label": "Tier 1 minimum quantity",
+      "min": 1,
+      "max": 24,
+      "step": 1,
+      "default": 1
+    },
+    {
+      "type": "range",
+      "id": "t1_max",
+      "label": "Tier 1 maximum quantity (0 = no max)",
+      "min": 0,
+      "max": 24,
+      "step": 1,
+      "default": 2
+    },
+    {
+      "type": "range",
+      "id": "t1_off",
+      "label": "Tier 1 discount %",
+      "min": 0,
+      "max": 100,
+      "step": 1,
+      "default": 0
+    },
+    {
+      "type": "text",
+      "id": "t1_label",
+      "label": "Tier 1 label",
+      "default": "Pick 1–2"
+    },
+    {
+      "type": "checkbox",
+      "id": "t1_show_name",
+      "label": "Show tier 1 helper text",
+      "default": false
+    },
+    {
+      "type": "text",
+      "id": "t1_name",
+      "label": "Tier 1 helper text"
+    },
+    {
+      "type": "image_picker",
+      "id": "t1_icon",
+      "label": "Tier 1 icon"
+    },
+    {
+      "type": "header",
+      "content": "Tier 2"
+    },
+    {
+      "type": "checkbox",
+      "id": "t2_enabled",
+      "label": "Enable tier 2",
+      "default": true
+    },
+    {
+      "type": "range",
+      "id": "t2_min",
+      "label": "Tier 2 minimum quantity",
+      "min": 1,
+      "max": 24,
+      "step": 1,
+      "default": 3
+    },
+    {
+      "type": "range",
+      "id": "t2_max",
+      "label": "Tier 2 maximum quantity (0 = no max)",
+      "min": 0,
+      "max": 24,
+      "step": 1,
+      "default": 5
+    },
+    {
+      "type": "range",
+      "id": "t2_off",
+      "label": "Tier 2 discount %",
+      "min": 0,
+      "max": 100,
+      "step": 1,
+      "default": 10
+    },
+    {
+      "type": "text",
+      "id": "t2_label",
+      "label": "Tier 2 label",
+      "default": "Pick 3–5 • 10% off"
+    },
+    {
+      "type": "checkbox",
+      "id": "t2_show_name",
+      "label": "Show tier 2 helper text",
+      "default": true
+    },
+    {
+      "type": "text",
+      "id": "t2_name",
+      "label": "Tier 2 helper text",
+      "default": "Most popular bundle"
+    },
+    {
+      "type": "image_picker",
+      "id": "t2_icon",
+      "label": "Tier 2 icon"
+    },
+    {
+      "type": "header",
+      "content": "Tier 3"
+    },
+    {
+      "type": "checkbox",
+      "id": "t3_enabled",
+      "label": "Enable tier 3",
+      "default": true
+    },
+    {
+      "type": "range",
+      "id": "t3_min",
+      "label": "Tier 3 minimum quantity",
+      "min": 1,
+      "max": 24,
+      "step": 1,
+      "default": 6
+    },
+    {
+      "type": "range",
+      "id": "t3_max",
+      "label": "Tier 3 maximum quantity (0 = no max)",
+      "min": 0,
+      "max": 24,
+      "step": 1,
+      "default": 0
+    },
+    {
+      "type": "range",
+      "id": "t3_off",
+      "label": "Tier 3 discount %",
+      "min": 0,
+      "max": 100,
+      "step": 1,
+      "default": 15
+    },
+    {
+      "type": "text",
+      "id": "t3_label",
+      "label": "Tier 3 label",
+      "default": "Pick 6+ • 15% off"
+    },
+    {
+      "type": "checkbox",
+      "id": "t3_show_name",
+      "label": "Show tier 3 helper text",
+      "default": true
+    },
+    {
+      "type": "text",
+      "id": "t3_name",
+      "label": "Tier 3 helper text",
+      "default": "Best value"
+    },
+    {
+      "type": "image_picker",
+      "id": "t3_icon",
+      "label": "Tier 3 icon"
+    }
+  ],
+  "presets": [
+    {
+      "name": "Mix & Match bundle"
+    }
+  ]
+}
+{% endschema %}
